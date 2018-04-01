@@ -13,11 +13,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
-class Network(nn.Module):
+class ActorNetwork(nn.Module):
     def __init__(self, input_dim, hidden_dim1, hidden_dim2, hidden_dim3, output_dim):
         ## network configuration (16,16,16,4)
         ## keras configuration (match Variance Initializer with -1,1 and fan_avg)
-        super(Network, self).__init__()
+        super(ActorNetwork, self).__init__()
         self.input_dim = input_dim
         self.hidden_dim1 = hidden_dim1
         self.hidden_dim2 = hidden_dim2
@@ -56,7 +56,7 @@ class Network(nn.Module):
         hidden3 = self.layer3(hidden2)
         hidden3 = F.relu(hidden3)
         output = self.layer4(hidden3)
-        output = F.softmax(output)
+        output = F.softmax(output, dim=0) ## for actor, only one input can be given at a time so first dimension is over all actions
         return output
 
     def loss(self):
@@ -72,7 +72,7 @@ class Reinforce(object):
         # TODO: Define any training operations and optimizers here, initialize
         self.env = env
         self.args = args
-        self.model = Network(self.env.observation_space.shape[0], self.args.hidden1, self.args.hidden2,
+        self.model = ActorNetwork(self.env.observation_space.shape[0], self.args.hidden1, self.args.hidden2,
                                    self.args.hidden3, self.env.action_space.n)
         self.lr = args.lr
         self.gamma = args.gamma
@@ -93,7 +93,7 @@ class Reinforce(object):
         for episode in range(self.args.num_episodes):
 
             ## generate episode
-            action_probabilities, actions, rewards = self.generate_episode(self.env, self.args.render)
+            states, action_probabilities, actions, rewards = self.generate_episode(self.env, self.args.render)
             discounted_rewards = self.discounted_rewards(rewards)
 
             ##create a batch
@@ -135,7 +135,7 @@ class Reinforce(object):
         self.model.train(False)
         average_reward = 0
         for i in range(100):
-            states, actions, rewards = self.generate_episode(self.env, self.args.render)
+            _,_,_,rewards = self.generate_episode(self.env, self.args.render)
             episode_reward = np.sum(rewards)
             average_reward += episode_reward*1e2
         average_reward = float(average_reward)/100
@@ -155,8 +155,10 @@ class Reinforce(object):
         action_distributions = []
         actions = []
         rewards = []
+        states = []
         current_state = env.reset()
         current_state_variable = Variable(torch.FloatTensor(current_state))
+        states.append(current_state_variable)
         episode_over  = False
         while episode_over is not True:
             action_distribution = self.model(current_state_variable)
@@ -168,7 +170,8 @@ class Reinforce(object):
             rewards.append(reward*1e-2)
             current_state = next_state
             current_state_variable = Variable(torch.FloatTensor(current_state))
-        return action_distributions, actions, rewards
+            states.append(current_state_variable)
+        return states[:-1], action_distributions, actions, rewards
 
 
 def parse_arguments():
