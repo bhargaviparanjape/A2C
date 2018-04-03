@@ -81,7 +81,7 @@ class Reinforce(object):
     def loss(self, action_probabilities, action_mask, discounted_rewards):
         masked_action_probabilities = action_mask*action_probabilities
         episode_action_probabilities = torch.sum(masked_action_probabilities, dim=1)
-        batch_loss = torch.mean(discounted_rewards*torch.log(episode_action_probabilities))
+        batch_loss = torch.mean(torch.log(episode_action_probabilities)*discounted_rewards)
         return -batch_loss
 
     def train(self):
@@ -192,7 +192,7 @@ def parse_arguments():
                               help="Whether to render the environment.")
     parser_group.add_argument('--verbose', dest='verbose',
                               action='store_true',
-                              help="Whether to print loss after every episode.")
+                              help="Whether to print loss after every  update.")
     parser_group.add_argument('--no-render', dest='render',
                               action='store_false',
                               help="Whether to render the environment.")

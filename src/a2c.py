@@ -108,6 +108,7 @@ class A2C(Reinforce):
         truncated_discounted_rewards = self.truncated_discounted_rewards(extended_rewards)
         discounted_rewards = np.zeros_like(rewards)
         for t in reversed(range(batch_size)):
+            ## this step makes the MSE target R_t a numpy array, hence target is now fixed and independent of parameters
             discounted_rewards[t] = math.pow(self.gamma,self.n)*extended_values[t+self.n] + truncated_discounted_rewards[t]
         ## before function exit, reset volatile
         extended_values.volatile = False
@@ -135,7 +136,7 @@ class A2C(Reinforce):
         total_actor_loss = 0
         total_critic_loss = 0
         for episode in range(self.args.num_episodes):
-            ## egnerate episode
+            ## generate episode
             states, action_probabilities, actions, rewards = self.generate_episode(self.env, self.args.render)
             values_for_actor, values, rewards = self.get_value_reward(states, rewards)
 
