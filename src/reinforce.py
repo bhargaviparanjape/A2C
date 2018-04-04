@@ -160,7 +160,7 @@ class Reinforce(object):
         
         T = len(rewards)
         discounted_rewards = np.zeros_like(rewards)
-        discounted_rewards[T-1] = rewards[T -1]
+        discounted_rewards[T-1] = rewards[T-1]
         for t in reversed(range(0, T-1)):
             discounted_rewards[t] = (
                             discounted_rewards[t+1] * self.gamma + rewards[t])

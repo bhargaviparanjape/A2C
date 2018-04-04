@@ -139,6 +139,7 @@ class A2C():
         return truncated_rewards
 
     def get_value_reward(self, states, rewards):
+        
         batch_size = len(rewards)
         states_variable = torch.stack(states)
         values = self.critic_model(states_variable)
