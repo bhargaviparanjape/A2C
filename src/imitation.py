@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import os
 import sys
 import argparse
 import numpy as np
@@ -28,14 +29,14 @@ class Imitation():
             self.model = keras.models.model_from_json(f.read())
         
         if self.args.resume or self.args.testonly:
-        	self.model.load_weights(self.args.trained_model_path)
-        	self.epochs_done, self.acchist, self.losshist = pkl.load(open(self.args.meta_path,'rb'))
+            self.model.load_weights(self.args.trained_model_path)
+            self.epochs_done, self.acchist, self.losshist = pkl.load(open(self.args.meta_path,'rb'))
         else:
-        	self.epochs_done, self.acchist, self.losshist = 0, [], []
+            self.epochs_done, self.acchist, self.losshist = 0, [], []
 
         self.optimizer = Adam(lr = self.args.lr)
         self.model.compile(loss='categorical_crossentropy',
-              			   optimizer=self.optimizer, metrics=['accuracy'])
+                           optimizer=self.optimizer, metrics=['accuracy'])
 
     def run_expert(self):
         # Generates an episode by running the expert policy on the given env.
@@ -80,36 +81,36 @@ class Imitation():
         # - render: Whether to render the environment.
         # Returns the final loss and accuracy.
         if self.args.resume:
-        	trainX, trainY = pkl.load(open(self.args.data_path,'rb'))
+            trainX, trainY = pkl.load(open(self.args.data_path,'rb'))
 
-       	else:
-	        trainX = []
-	        trainy = []
-	       	for i in range(self.args.num_episodes):
-	       		states, actions, _ = self.run_expert()
-	       		trainX.extend(states)
-	       		trainy.extend(actions)
+        else:
+            trainX = []
+            trainy = []
+            for i in range(self.args.num_episodes):
+                states, actions, _ = self.run_expert()
+                trainX.extend(states)
+                trainy.extend(actions)
 
-	       	trainX = np.array(trainX)
-	       	trainY = np.zeros((len(trainy), self.nA))
-	       	trainY[np.arange(len(trainy)), np.array(trainy)] = 1
+            trainX = np.array(trainX)
+            trainY = np.zeros((len(trainy), self.nA))
+            trainY[np.arange(len(trainy)), np.array(trainy)] = 1
 
-	       	if not self.args.trial:
-	       		pkl.dump((trainX, trainY), open(self.args.data_path,'wb'))
+            if not self.args.trial:
+                pkl.dump((trainX, trainY), open(self.args.data_path,'wb'))
 
-       	print ('*'*80)
-       	print ('Data Collection Complete')
-       	print ('*'*80)
+        print ('*'*80)
+        print ('Data Collection Complete')
+        print ('*'*80)
 
-       	hist = self.model.fit(trainX, trainY, batch_size = self.args.batch_size,
-       			  verbose = self.args.verbose, epochs = (self.args.num_epochs-self.epochs_done))
+        hist = self.model.fit(trainX, trainY, batch_size = self.args.batch_size,
+                  verbose = self.args.verbose, epochs = (self.args.num_epochs-self.epochs_done))
 
-       	self.acchist.extend(hist.history['acc'])
-       	self.losshist.extend(hist.history['loss'])
+        self.acchist.extend(hist.history['acc'])
+        self.losshist.extend(hist.history['loss'])
 
-       	if not self.args.trial:
-	       	self.model.save_weights(self.args.trained_model_path)
-	       	pkl.dump((self.args.num_epochs, self.acchist, self.losshist), open(self.args.meta_path,'wb'))
+        if not self.args.trial:
+            self.model.save_weights(self.args.trained_model_path)
+            pkl.dump((self.args.num_epochs, self.acchist, self.losshist), open(self.args.meta_path,'wb'))
 
 
     def test(self, model):
@@ -132,19 +133,13 @@ def parse_arguments():
                         default='LunarLander-v2-config.json',
                         help="Path to the model config file.")
     parser.add_argument('--expert-weights-path', dest='expert_weights_path', type=str, 
-    					default='LunarLander-v2-weights.h5',
+                        default='LunarLander-v2-weights.h5',
                         help="Path to the expert weights file.")
-    parser.add_argument('--trained_model_path', dest='trained_model_path',type=str, 
-                        default='imitation/imitation_model.h5',
-                        help="Path to the model.")
-    parser.add_argument('--meta_path', dest='meta_path',type=str, 
-                        default='imitation/imitation_meta.p',
-                        help="Path to meta information for model.")
-    parser.add_argument('--data_path', dest='data_path',type=str, 
-                        default='imitation/imitation_data.p',
-                        help="Path to data")
+    
+    parser.add_argument('--result_path', dest='result_path',type=str, 
+                        default='imitation/',
+                        help="Path to therresult folder model.")
 
-    # https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
     parser_group = parser.add_mutually_exclusive_group(required=False)
     parser_group.add_argument('--render', dest='render',
                               action='store_true',
@@ -180,13 +175,17 @@ def parse_arguments():
                          help="If it is just a test")
 
     args = parser.parse_args()
-    args.trained_model_path = '.'.join([args.trained_model_path.split('.')[0] 
-    									+ str(args.num_episodes), 
-    									args.trained_model_path.split('.')[1]])
-    args.meta_path = '.'.join([args.meta_path.split('.')[0] + str(args.num_episodes), 
-                                args.meta_path.split('.')[1]])
-    args.data_path = '.'.join([args.data_path.split('.')[0] + str(args.num_episodes), 
-                                args.data_path.split('.')[1]])
+    
+    
+    if not os.path.exists(args.result_path):
+        os.makedirs(args.result_path)
+        
+    args.trained_model_path = os.path.join(args.result_path, 
+                              'imitation_model' +str(args.num_episodes)+ '.h5')
+    args.meta_path = os.path.join(args.result_path, 
+                              'imitation_meta' +str(args.num_episodes)+ '.p')
+    args.data_path = os.path.join(args.result_path,
+                              'imitation_data' +str(args.num_episodes)+ '.p')
 
     return args
 
@@ -194,15 +193,15 @@ def parse_arguments():
 def main(args):
     # Parse command-line arguments.
     args = parse_arguments()
-    
+
     # Create the environment.
     env = gym.make('LunarLander-v2')
     env.seed(args.seed)
-    
+
     imitation = Imitation(env, args)
 
     if (not args.testonly) and (args.num_epochs - imitation.epochs_done) > 0:
-    	imitation.train()
+        imitation.train()
 
     print('*'*80)
     print('Accuracy of Trained Cloned Model: %f' %(imitation.acchist[-1]))
@@ -210,18 +209,18 @@ def main(args):
 
     if args.testonly:
 
-	    imitation.env.seed(args.seed)
+        imitation.env.seed(args.seed)
 
-	    average_reward_e, std_reward_e = imitation.test(imitation.expert)
-	    print('*'*80)
-	    print("Expert reward {0} +/- {1}".format(average_reward_e, std_reward_e))
-	    print('*'*80)
-	    
-	    average_reward_c, std_reward_c = imitation.test(imitation.model)
-	    print('*'*80)
-	    print("Cloned using {0} episodes, Reward after {1} epochs: {2} +/- {3}"
-	    		.format(args.num_episodes, args.num_epochs, average_reward_c, std_reward_c))
-	    print('*'*80)
+        average_reward_e, std_reward_e = imitation.test(imitation.expert)
+        print('*'*80)
+        print("Expert reward {0} +/- {1}".format(average_reward_e, std_reward_e))
+        print('*'*80)
+
+        average_reward_c, std_reward_c = imitation.test(imitation.model)
+        print('*'*80)
+        print("Cloned using {0} episodes, Reward after {1} epochs: {2} +/- {3}"
+                .format(args.num_episodes, args.num_epochs, average_reward_c, std_reward_c))
+        print('*'*80)
 
 if __name__ == '__main__':
   main(sys.argv)

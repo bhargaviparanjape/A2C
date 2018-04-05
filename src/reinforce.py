@@ -214,13 +214,13 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     
     parser.add_argument('--plot_path', dest='plot_path',type=str, 
-                        default='reinforce/reinforce_plot.png',
+                        default='reinforce/reinforce_plot2.png',
                         help="Path to the plot.")
     parser.add_argument('--model_path', dest='model_path',type=str, 
-                        default='reinforce/reinforce_model.pt',
+                        default='reinforce/reinforce_model2.pt',
                         help="Path to the model.")
     parser.add_argument('--meta_path', dest='meta_path',type=str, 
-                        default='reinforce/reinforce_meta.p',
+                        default='reinforce/reinforce_meta2.p',
                         help="Path to meta information for model.")
     parser.add_argument('--resume', dest='resume', type=int, default=0, 
                         help="Resume the training from last checkpoint")
@@ -235,7 +235,7 @@ def parse_arguments():
                         default=25, 
                         help="Number of episodes to log after.")
     parser.add_argument('--gamma', type=float, dest='gamma', 
-                        default=0.95)
+                        default=1.0)
     parser.add_argument('--seed', type=int, dest='seed', default=0)
     parser.add_argument('--trial', dest='trial', action='store_true',
                          help="If it is just a trial")
