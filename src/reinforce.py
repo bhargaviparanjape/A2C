@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import gym
-
+from torch.distributions import Categorical
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -56,7 +56,7 @@ class ActorNetwork(nn.Module):
         hidden3 = self.layer3(hidden2)
         hidden3 = F.relu(hidden3)
         output = self.layer4(hidden3)
-        output = F.softmax(output, dim=0) ## for actor, only one input can be given at a time so first dimension is over all actions
+        output = F.softmax(output, dim=1) ## for actor, only one input can be given at a time so first dimension is over all actions
         return output
 
     def loss(self):
@@ -78,11 +78,13 @@ class Reinforce(object):
         self.gamma = args.gamma
 
 
-    def loss(self, action_probabilities, action_mask, discounted_rewards):
-        masked_action_probabilities = action_mask*action_probabilities
-        episode_action_probabilities = torch.sum(masked_action_probabilities, dim=1)
-        batch_loss = torch.mean(torch.log(episode_action_probabilities)*discounted_rewards)
-        return -batch_loss
+    def loss(self, action_probabilities, discounted_rewards):
+        batch_loss = []
+        for log_prob, reward in zip(action_probabilities, discounted_rewards):
+            batch_loss.append(-log_prob * reward)
+        batch_loss = torch.cat(batch_loss).mean()
+        # batch_loss = torch.mean(action_probabilities * discounted_rewards)
+        return batch_loss
 
     def train(self):
         if self.args.optimizer == "adam":
@@ -96,15 +98,8 @@ class Reinforce(object):
             states, action_probabilities, actions, rewards = self.generate_episode(self.env, self.args.render)
             discounted_rewards = self.discounted_rewards(rewards)
 
-            ##create a batch
-            mask = np.zeros((len(actions), self.env.action_space.n))
-            mask[np.arange(len(actions)), actions] = 1
-            action_mask = Variable(torch.FloatTensor(mask))
-            action_probabilities = torch.stack(action_probabilities)
-            discounted_reward_variable = Variable(torch.FloatTensor(discounted_rewards))
-
             ## batch backpropogate
-            loss = self.loss(action_probabilities, action_mask, discounted_reward_variable)
+            loss = self.loss(action_probabilities, discounted_rewards)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -136,20 +131,19 @@ class Reinforce(object):
         average_reward = 0
         for i in range(100):
             _,_,_,rewards = self.generate_episode(self.env, self.args.render)
-            episode_reward = np.sum(rewards)
-            average_reward += episode_reward*1e2
+            episode_reward = np.sum(rewards) # * (rewards.std() + np.finfo(np.float32).eps) + rewards.mean())
+            average_reward += episode_reward *1e2
         average_reward = float(average_reward)/100
         self.model.train(True)
         return average_reward
 
     def discounted_rewards(self, rewards):
-        ## implementation different from standards
-        T = len(rewards)
-        discounted_rewards = np.zeros_like(rewards)
-        discounted_rewards[T-1] = rewards[T -1]
-        for t in reversed(range(0, T-1)):
-            discounted_rewards[t] = discounted_rewards[t+1] * self.gamma + rewards[t]
-        return discounted_rewards
+        d_rewards = []
+        R = 0
+        for r in rewards[::-1]:
+            R = r + self.args.gamma * R
+            d_rewards.insert(0, R)
+        return d_rewards
 
     def generate_episode(self, env, render=False, test_time = False):
         action_distributions = []
@@ -157,20 +151,27 @@ class Reinforce(object):
         rewards = []
         states = []
         current_state = env.reset()
-        current_state_variable = Variable(torch.FloatTensor(current_state))
+        # current_state_variable = Variable(torch.FloatTensor(current_state))
+        current_state_variable = Variable(torch.from_numpy(current_state).float().unsqueeze(0))
         states.append(current_state_variable)
         episode_over  = False
         while episode_over is not True:
-            action_distribution = self.model(current_state_variable)
-            action = np.random.choice(env.action_space.n, 1, p=action_distribution.data.numpy())[0]
-            # action = torch.multinomial(action_distribution, 1).data.numpy()
+            probs = self.model(current_state_variable)
+            m = Categorical(probs)
+            action_variable = m.sample()
+            action = action_variable.data[0]
             next_state, reward, episode_over, _ = env.step(action)
-            action_distributions.append(action_distribution)
+
+            action_distributions.append(m.log_prob(action_variable))
             actions.append(action)
-            rewards.append(reward*1e-2)
+            rewards.append(reward *1e-2)
+
             current_state = next_state
-            current_state_variable = Variable(torch.FloatTensor(current_state))
+            current_state_variable = Variable(torch.from_numpy(current_state).float().unsqueeze(0))
             states.append(current_state_variable)
+
+        rewards = np.array(rewards)
+        # rewards = (rewards - rewards.mean()) / (rewards.std() + np.finfo(np.float32).eps)
         return states[:-1], action_distributions, actions, rewards
 
 
@@ -184,7 +185,7 @@ def parse_arguments():
                         default=50000, help="Number of episodes to train on.")
     parser.add_argument('--eval_after', dest='eval_after', type=int,
                         default=500, help="Number of episodes to evaluate after.")
-    parser.add_argument('--gamma', type=float, dest='gamma', default=0.95)
+    parser.add_argument('--gamma', type=float, dest='gamma', default=0.99)
     # https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
     parser_group = parser.add_mutually_exclusive_group(required=False)
     parser_group.add_argument('--render', dest='render',
