@@ -202,7 +202,7 @@ class Reinforce(object):
         Z = [x[2] for x in self.recorded_performance]
         
         plt.figure()
-        plt.errorbar(X, Y, yerr = Z, ecolor='b')
+        plt.errorbar(X, Y, yerr = Z, ecolor='r', capsize=2)
         plt.xlabel('Episodes')
         plt.ylabel('Episode Reward')
         plt.title("Variation of reward with number of training episodes")
