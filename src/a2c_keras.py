@@ -191,7 +191,7 @@ class A2C():
         plt.axhline(y=200, linestyle='--')
         plt.xlabel('Episodes')
         plt.ylabel('Average Reward')
-        plt.title("Performance of ActorCritic Algorithm on Lunar Lander")
+        plt.title("Performance of A2C Algorithm (n="+str(self.args.n)+") on Lunar Lander")
         plt.savefig(self.args.plot_path,dpi = 200)
 
 
