@@ -145,13 +145,14 @@ class Reinforce(object):
         X = [x[0] for x in performance]
         Y = [x[1] for x in performance]
         Z = [x[2] for x in performance]
-        
+
         plt.figure()
         plt.errorbar(X, Y, yerr = Z, ecolor='r', capsize = 2)
+        plt.axhline(y=200, linestyle='--')
         plt.xlabel('Episodes')
-        plt.ylabel('Episode Reward')
-        plt.title("Variation of reward with number of training episodes")
-        plt.savefig(self.args.plot_path)
+        plt.ylabel('Average Reward')
+        plt.title("Performance of Reinforce Algorithm on Lunar Lander")
+        plt.savefig(self.args.plot_path,dpi = 200)
 
 
 def parse_arguments():
