@@ -129,7 +129,7 @@ class Reinforce(object):
         for i in range(self.args.num_test_episodes):
             _, _, rewards = self.generate_episode(self.env, self.args.render)
             episode_reward = np.sum(rewards)
-            all_rewards.append(episode_reward)
+            all_rewards.append(episode_reward*100)
 
         average_reward = np.mean(all_rewards)
         std_reward = np.std(all_rewards)
@@ -260,7 +260,8 @@ def main(args):
     elif args.mode == 'test':
         reinforce.test()
     elif args.mode == 'video':
-        reinforce.test_single(best_model_path)
+        average_reward, std_reward = reinforce.test_single(args.episode_number)
+        print(average_reward, std_reward)
 
 
 if __name__ == '__main__':
