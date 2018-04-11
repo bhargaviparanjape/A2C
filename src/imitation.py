@@ -8,7 +8,7 @@ np.random.seed(0)
 import keras
 import gym
 import pickle as pkl
-
+from gym import wrappers
 from keras.optimizers import Adam
 
 
@@ -28,9 +28,11 @@ class Imitation():
         with open(self.args.model_config_path, 'r') as f:
             self.model = keras.models.model_from_json(f.read())
         
-        if self.args.resume or self.args.testonly:
+        if self.args.resume:
             self.model.load_weights(self.args.trained_model_path)
             self.epochs_done, self.acchist, self.losshist = pkl.load(open(self.args.meta_path,'rb'))
+        elif self.args.testonly:
+            self.model.load_weights(self.args.trained_model_path)
         else:
             self.epochs_done, self.acchist, self.losshist = 0, [], []
 
@@ -114,7 +116,10 @@ class Imitation():
 
 
     def test(self, model):
-        
+        if self.args.render:
+            self.env = wrappers.Monitor(self.env, self.args.video_path,
+                                        video_callable=lambda episode_id: True, force=True)
+
         all_rewards = []
         for i in range(self.args.num_test_episodes):
             _ ,_ , rewards = Imitation.generate_episode(model, self.env)
@@ -139,7 +144,9 @@ def parse_arguments():
     parser.add_argument('--result_path', dest='result_path',type=str, 
                         default='imitation/',
                         help="Path to therresult folder model.")
-
+    parser.add_argument('--video_path', dest='video_path', type=str,
+                        default='imitation/videos/',
+                        help="Path to the video folder.")
     parser_group = parser.add_mutually_exclusive_group(required=False)
     parser_group.add_argument('--render', dest='render',
                               action='store_true',
@@ -204,17 +211,17 @@ def main(args):
         imitation.train()
 
     print('*'*80)
-    print('Accuracy of Trained Cloned Model: %f' %(imitation.acchist[-1]))
+    # print('Accuracy of Trained Cloned Model: %f' %(imitation.acchist[-1]))
     print('*'*80)
 
     if args.testonly:
 
         imitation.env.seed(args.seed)
 
-        average_reward_e, std_reward_e = imitation.test(imitation.expert)
-        print('*'*80)
-        print("Expert reward {0} +/- {1}".format(average_reward_e, std_reward_e))
-        print('*'*80)
+        # average_reward_e, std_reward_e = imitation.test(imitation.expert)
+        # print('*'*80)
+        # print("Expert reward {0} +/- {1}".format(average_reward_e, std_reward_e))
+        # print('*'*80)
 
         average_reward_c, std_reward_c = imitation.test(imitation.model)
         print('*'*80)

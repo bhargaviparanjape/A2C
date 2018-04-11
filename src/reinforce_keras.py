@@ -6,12 +6,12 @@ import sys
 import argparse
 import numpy as np
 np.random.seed(0)
-import pickle as pkl
 
 import keras
 from keras.optimizers import Adam
 
 import gym
+from gym import wrappers
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -118,7 +118,22 @@ class Reinforce(object):
                                                           average_reward, std_reward))
             print('*'*80)
         self.plot_performance(performance)
-                          
+
+    def test_single(self, episode):
+        if self.args.render:
+            self.env = wrappers.Monitor(self.env, self.args.video_path,
+                                        video_callable=lambda episode_id: True, force=True)
+
+        self.model.load_weights(os.path.join(self.args.model_path, str(episode)))
+        all_rewards = []
+        for i in range(self.args.num_test_episodes):
+            _, _, rewards = self.generate_episode(self.env, self.args.render)
+            episode_reward = np.sum(rewards)
+            all_rewards.append(episode_reward)
+
+        average_reward = np.mean(all_rewards)
+        std_reward = np.std(all_rewards)
+        return average_reward, std_reward
 
     def generate_episode(self, env, model, render = False):
         
@@ -165,7 +180,10 @@ def parse_arguments():
     parser.add_argument('--result_path', dest='result_path',type=str, 
                         default='reinforce_keras',
                         help="Path to the model.")
-    parser.add_argument('--resume', dest='resume', type=int, default=0, 
+    parser.add_argument('--video_path', dest='video_path', type=str,
+                        default='reinforce_keras/videos/',
+                        help="Path to the video folder.")
+    parser.add_argument('--resume', dest='resume', type=int, default=0,
                         help="Resume the training from last checkpoint")
 
     parser.add_argument('--num-episodes', dest='num_episodes', type=int, 
@@ -182,6 +200,8 @@ def parse_arguments():
     
     parser.add_argument('--run', type=int, dest='run', default=1)
     parser.add_argument('--seed', type=int, dest='seed', default=0)
+    parser.add_argument('--episode_number', type=int, dest='episode_number', default=0)
+    parser.add_argument('--num_test_episodes', type=int, dest='num_test_episodes', default=1)
     parser.add_argument('--trial', dest='trial', action='store_true',
                          help="If it is just a trial")
     parser.add_argument('--verbose', dest='verbose', action='store_true',
@@ -232,12 +252,16 @@ def main(args):
     env.seed(args.seed)
     
     reinforce = Reinforce(env, args)
-    
+    best_model_path = sorted([int(ep) for ep in os.listdir(args.model_path)])[-1]
+
     if args.mode == 'train':
         reinforce.train()
         
     elif args.mode == 'test':
-        reinforce.test()    
+        reinforce.test()
+    elif args.mode == 'video':
+        reinforce.test_single(best_model_path)
+
 
 if __name__ == '__main__':
     main(sys.argv)
