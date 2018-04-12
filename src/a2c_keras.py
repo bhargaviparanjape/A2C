@@ -7,18 +7,30 @@ import argparse
 import numpy as np
 np.random.seed(0)
 import pickle as pkl
-
+import tensorflow as tf
 import keras
 from keras.optimizers import Adam
+from keras.callbacks import TensorBoard
 
 import gym
 from gym import wrappers
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from time import time
 import pickle as pkl
 
 import math
+
+
+def write_log(callback, names, logs, batch_no):
+    for name, value in zip(names, logs):
+        summary = tf.Summary()
+        summary_value = summary.value.add()
+        summary_value.simple_value = value
+        summary_value.tag = name
+        callback.writer.add_summary(summary, batch_no)
+        callback.writer.flush()
 
 class A2C():
     def __init__(self, env, args):
@@ -82,6 +94,7 @@ class A2C():
                                     truncated_discounted_rewards[t]
         return discounted_rewards
 
+
     def train(self):
         
         if self.args.optimizer == "adam":
@@ -94,9 +107,14 @@ class A2C():
         total_act_loss = []
         total_crit_loss = []
         all_rewards = []
-        
+
+        tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
+        train_names = ['metric' , 'actor_loss', 'critic_loss']
+        val_names = ['val_metric', 'val_actor_loss', 'val_critic_loss']
+        tensorboard.set_model(self.model)
+
         for episode in range(self.episodes_done ,self.args.num_episodes):
-            
+            print("Training episode {0}".format(episode))
             ## Generate Episode
             states, actions, rewards, values = self.generate_episode(self.env, self.args.render)
             discounted_rewards = self.get_value_reward(states, rewards, values)
@@ -108,8 +126,10 @@ class A2C():
 
             crit_target = np.array(discounted_rewards)
 
-            _, act_loss, crit_loss = self.model.train_on_batch(states, {'act_output': act_target, 
-                                                                    'crit_output': crit_target})
+            metric , act_loss, crit_loss = self.model.train_on_batch(states, {'act_output': act_target,
+                                                                    'crit_output': crit_target}, )
+            logs = [metric, act_loss, crit_loss]
+            write_log(tensorboard, train_names, logs, episode)
 
             total_act_loss.append(act_loss)
             total_crit_loss.append(crit_loss)
@@ -296,7 +316,7 @@ def main(args):
     a2c = A2C(env, args)
 
     # best model at;
-    best_model_path = sorted([int(ep) for ep in os.listdir(args.model_path)])[-1]
+    # best_model_path = sorted([int(ep) for ep in os.listdir(args.model_path)])[-1]
 
     if args.mode == 'train':
         a2c.train()
@@ -304,7 +324,7 @@ def main(args):
     elif args.mode == 'test':
         a2c.test()
     elif args.mode == 'video':
-        average_reward, std_reward = a2c.test_single(best_model_path)
+        average_reward, std_reward = a2c.test_single(args.episode_number)
         print(average_reward, std_reward)
 
 if __name__ == '__main__':
